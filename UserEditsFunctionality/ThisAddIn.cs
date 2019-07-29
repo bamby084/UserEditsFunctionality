@@ -35,12 +35,6 @@ namespace UserEditsFunctionality
 
         private void OnDisplayContextMenu(object sheet, Range range, ref bool cancel)
         {
-            if (range.Rows.Count != 1)
-            {
-                ContextMenu.Reset();
-                return;
-            }
-
             foreach (Office.CommandBarControl control in ContextMenu.Controls)
             {
                 control.Delete(true);
@@ -120,10 +114,14 @@ namespace UserEditsFunctionality
 
         private bool CanClassifyAsNewItem(Range range)
         {
-            string label = range.EntireRow.Cell(1).Value;
-            if (label == null || !label.Equals(LabelAction.Change.GetDescription(),
-                    StringComparison.CurrentCultureIgnoreCase))
-                return false;
+            foreach (Range row in range.Rows)
+            {
+                string label = row.EntireRow.Cell(1).Value;
+                if (label == null || !label.Equals(LabelAction.Change.GetDescription(),
+                        StringComparison.CurrentCultureIgnoreCase))
+
+                    return false;
+            }
 
             return true;
         }
