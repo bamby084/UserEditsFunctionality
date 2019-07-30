@@ -73,25 +73,48 @@ namespace UserEditsFunctionality
         {
             if (!CanClassifyAsNewItem(range))
                 return;
+            
+            int rowCount = range.Rows.Count;
+            int rowToInsertIndex = range.Row + rowCount;
+            Range rowToInsert = range.Worksheet.Rows[rowToInsertIndex];
 
-            Range row = range.Worksheet.Rows[range.Row + 1];
-            row.Insert();
-
-            Range newRow = range.Worksheet.Rows[range.Row + 1];
-            range.EntireRow.Copy(newRow);
-
-            newRow.Cell(3).Interior.Color = ColorTranslator.ToOle(Color.FromArgb(163, 255, 163));
-            newRow.Cell(1).Value = LabelAction.Addtition.GetDescription();
-            int lastCellColumn = newRow.LastNonEmptyCell().Column;
-
-            for (int i = 5; i < lastCellColumn; i++)
+            //insert empty rows
+            for (int i = 0; i < rowCount; i++)
             {
-                newRow.Cell(i).Value = null;
+                rowToInsert.EntireRow.Insert();
+            }
+            return;
+            //copy values
+            for (int i = 1; i <= rowCount; i++)
+            {
+                Range newRow = range.Worksheet.Rows[rowToInsertIndex + i];
+                Range oldRow = ((Range) range.Rows[i]).EntireRow;
+
+                newRow.Cell(1).Value = LabelAction.Addtition.GetDescription();
+                newRow.Cell(2).Value = oldRow.Cell(2).Value;
+                newRow.Cell(3).Value = oldRow.Cell(3).Value;
+                newRow.Cell(4).Value = oldRow.Cell(4).Value;
+
+                //int lastCellColumn = oldRow.LastNonEmptyCell().Column;
+                //newRow.Cell(lastCellColumn).Value = oldRow.Cell(lastCellColumn).Value;
             }
 
-            range.EntireRow.Cell(3).Interior.Color = ColorTranslator.ToOle(Color.FromArgb(253, 157, 166));
-            range.EntireRow.Cell(1).Value = LabelAction.Discontinued.GetDescription();
-            range.EntireRow.Cell(lastCellColumn).Value = null;
+            
+            //Range newRow = range.Worksheet.Rows[range.Row + 1];
+            //range.EntireRow.Copy(newRow);
+
+            //newRow.Cell(3).Interior.Color = ColorTranslator.ToOle(Color.FromArgb(163, 255, 163));
+            //newRow.Cell(1).Value = LabelAction.Addtition.GetDescription();
+            //int lastCellColumn = newRow.LastNonEmptyCell().Column;
+
+            //for (int i = 5; i < lastCellColumn; i++)
+            //{
+            //    newRow.Cell(i).Value = null;
+            //}
+
+            //range.EntireRow.Cell(3).Interior.Color = ColorTranslator.ToOle(Color.FromArgb(253, 157, 166));
+            //range.EntireRow.Cell(1).Value = LabelAction.Discontinued.GetDescription();
+            //range.EntireRow.Cell(lastCellColumn).Value = null;
         }
 
         private void ClassifyAsLabelChange(Range range)
@@ -116,7 +139,7 @@ namespace UserEditsFunctionality
         {
             foreach (Range row in range.Rows)
             {
-                string label = row.EntireRow.Cell(1).Value;
+                 string label = row.EntireRow.Cell(1).Value;
                 if (label == null || !label.Equals(LabelAction.Change.GetDescription(),
                         StringComparison.CurrentCultureIgnoreCase))
 
