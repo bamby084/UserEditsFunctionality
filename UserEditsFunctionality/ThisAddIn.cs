@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Drawing;
 using Microsoft.Office.Interop.Excel;
 using Office = Microsoft.Office.Core;
@@ -9,17 +10,18 @@ namespace UserEditsFunctionality
 {
     public partial class ThisAddIn
     {
-        private Office.CommandBar ContextMenu => Application.CommandBars["Cell"];
+        private Office.CommandBar CellContextMenu => Application.CommandBars["Cell"];
+        private Office.CommandBar RowContextMenu => Application.CommandBars["Row"];
 
         private void ThisAddIn_Startup(object sender, EventArgs e)
         {
-            ContextMenu.Reset();
+            ResetContextMenus();
             RegisterEvents();
         }
 
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
-            ContextMenu.Reset();
+            ResetContextMenus();
             UnRegisterEvents();
         }
 
@@ -35,33 +37,15 @@ namespace UserEditsFunctionality
 
         private void OnDisplayContextMenu(object sheet, Range range, ref bool cancel)
         {
-            foreach (Office.CommandBarControl control in ContextMenu.Controls)
+            string sheetName = range.Worksheet.Name;
+            if (!sheetName.EndsWith("_Model", StringComparison.CurrentCultureIgnoreCase))
             {
-                control.Delete(true);
+                ResetContextMenus();
+                return;
             }
 
-            var deleteRowMenuItem = ContextMenu.Controls.Add(Office.MsoControlType.msoControlButton, missing, missing, missing, true);
-            deleteRowMenuItem.Caption = "Delete Row";
-            ((CommandBarButton)deleteRowMenuItem).Click += (CommandBarButton deleteButton, ref bool cancelDelete) =>
-            {
-                DeleteRow(range);
-            };
-
-            var newItemMenuItem = ContextMenu.Controls.Add(Office.MsoControlType.msoControlButton, missing, missing, missing, true);
-            newItemMenuItem.Caption = "Classify as New Item";
-            newItemMenuItem.Enabled = CanClassifyAsNewItem(range);
-            ((CommandBarButton)newItemMenuItem).Click += (CommandBarButton classifyNewButton, ref bool cancelNewItem) =>
-            {
-                ClassifyAsNewItem(range);
-            };
-
-            var labelChangeMenuItem = ContextMenu.Controls.Add(Office.MsoControlType.msoControlButton, missing, missing, missing, true);
-            labelChangeMenuItem.Caption = "Classify as Label Change";
-            labelChangeMenuItem.Enabled = CanClassifyAsLabelChange(range);
-            ((CommandBarButton)labelChangeMenuItem).Click += (CommandBarButton classifyLabelChangeButton, ref bool cancelLabelChange) =>
-            {
-                ClassifyAsLabelChange(range);
-            };
+            CreateCustomContextMenu(CellContextMenu, range);
+            CreateCustomContextMenu(RowContextMenu, range);
         }
 
         private void DeleteRow(Range range)
@@ -75,46 +59,33 @@ namespace UserEditsFunctionality
                 return;
             
             int rowCount = range.Rows.Count;
-            int rowToInsertIndex = range.Row + rowCount;
-            Range rowToInsert = range.Worksheet.Rows[rowToInsertIndex];
 
-            //insert empty rows
+            //insert new empty rows
+            Range baseRow = range.Worksheet.Rows[range.Row + rowCount];
             for (int i = 0; i < rowCount; i++)
             {
-                rowToInsert.EntireRow.Insert();
+                baseRow.Insert();
             }
-            return;
+
             //copy values
-            for (int i = 1; i <= rowCount; i++)
+            for (int i = 0; i < rowCount; i++)
             {
-                Range newRow = range.Worksheet.Rows[rowToInsertIndex + i];
-                Range oldRow = ((Range) range.Rows[i]).EntireRow;
+                Range newRow = ((Range)range.Worksheet.Rows[range.Row + rowCount + i]).EntireRow;
+                Range oldRow = ((Range)range.Worksheet.Rows[range.Row + i]).EntireRow;
 
                 newRow.Cell(1).Value = LabelAction.Addtition.GetDescription();
                 newRow.Cell(2).Value = oldRow.Cell(2).Value;
                 newRow.Cell(3).Value = oldRow.Cell(3).Value;
                 newRow.Cell(4).Value = oldRow.Cell(4).Value;
+                newRow.Cell(3).Interior.Color = ColorTranslator.ToOle(Color.FromArgb(163, 255, 163));
 
-                //int lastCellColumn = oldRow.LastNonEmptyCell().Column;
-                //newRow.Cell(lastCellColumn).Value = oldRow.Cell(lastCellColumn).Value;
+                int lastNonEmptyColumn = oldRow.LastNonEmptyCell().Column;
+                newRow.Cell(lastNonEmptyColumn).Value = oldRow.Cell(lastNonEmptyColumn).Value;
+
+                oldRow.Cell(3).Interior.Color = ColorTranslator.ToOle(Color.FromArgb(253, 157, 166));
+                oldRow.Cell(1).Value = LabelAction.Discontinued.GetDescription();
+                oldRow.Cell(lastNonEmptyColumn).Value = null;
             }
-
-            
-            //Range newRow = range.Worksheet.Rows[range.Row + 1];
-            //range.EntireRow.Copy(newRow);
-
-            //newRow.Cell(3).Interior.Color = ColorTranslator.ToOle(Color.FromArgb(163, 255, 163));
-            //newRow.Cell(1).Value = LabelAction.Addtition.GetDescription();
-            //int lastCellColumn = newRow.LastNonEmptyCell().Column;
-
-            //for (int i = 5; i < lastCellColumn; i++)
-            //{
-            //    newRow.Cell(i).Value = null;
-            //}
-
-            //range.EntireRow.Cell(3).Interior.Color = ColorTranslator.ToOle(Color.FromArgb(253, 157, 166));
-            //range.EntireRow.Cell(1).Value = LabelAction.Discontinued.GetDescription();
-            //range.EntireRow.Cell(lastCellColumn).Value = null;
         }
 
         private void ClassifyAsLabelChange(Range range)
@@ -122,16 +93,24 @@ namespace UserEditsFunctionality
             if (!CanClassifyAsLabelChange(range))
                 return;
 
-            Range nonEmptyCells = range.EntireRow.Cells.SpecialCells(XlCellType.xlCellTypeConstants, 7);
-            Range rowAbove = range.Worksheet.Rows[range.Row - 1];
-
-            foreach (Range cell in nonEmptyCells.Cells)
+            foreach (Range row in range.Rows)
             {
-                rowAbove.Cell(cell.Column).Value = cell.Value;
+                Range nonEmptyCells = row.EntireRow.Cells.SpecialCells(XlCellType.xlCellTypeConstants, 7);
+                int aboveRowIndex = row.Row - range.Rows.Count;
+                if(aboveRowIndex < 1)
+                    continue;
+                
+                Range aboveRow = range.Worksheet.Rows[aboveRowIndex];
+
+                foreach (Range cell in nonEmptyCells.Cells)
+                {
+                    aboveRow.Cell(cell.Column).Value = cell.Value;
+                }
+
+                aboveRow.Cell(1).Value = LabelAction.Change.GetDescription();
+                aboveRow.Cell(3).Interior.Color = ColorTranslator.ToOle(Color.FromArgb(163, 224, 255));
             }
 
-            rowAbove.Cell(1).Value = LabelAction.Change.GetDescription();
-            rowAbove.Cell(3).Interior.Color = ColorTranslator.ToOle(Color.FromArgb(163, 224, 255));
             range.EntireRow.Delete();
         }
 
@@ -151,12 +130,52 @@ namespace UserEditsFunctionality
 
         private bool CanClassifyAsLabelChange(Range range)
         {
-            string label = range.EntireRow.Cell(1).Value;
-            if (string.IsNullOrEmpty(label) || !label.Equals(LabelAction.Addtition.GetDescription(),
-                    StringComparison.CurrentCultureIgnoreCase) || range.Row == 1)
-                return false;
-
+            foreach (Range row in range.Rows)
+            {
+                string label = row.EntireRow.Cell(1).Value;
+                if (string.IsNullOrEmpty(label) || !label.Equals(LabelAction.Addtition.GetDescription(),
+                        StringComparison.CurrentCultureIgnoreCase))
+                    return false;
+            }
+            
             return true;
+        }
+
+        private void ResetContextMenus()
+        {
+            CellContextMenu.Reset();
+            RowContextMenu.Reset();
+        }
+
+        private void CreateCustomContextMenu(Office.CommandBar commandBar, Range range)
+        {
+            foreach (Office.CommandBarControl control in commandBar.Controls)
+            {
+                control.Delete(true);
+            }
+
+            var deleteRowMenuItem = commandBar.Controls.Add(Office.MsoControlType.msoControlButton, missing, missing, missing, true);
+            deleteRowMenuItem.Caption = "Delete Row";
+            ((CommandBarButton)deleteRowMenuItem).Click += (CommandBarButton deleteButton, ref bool cancelDelete) =>
+            {
+                DeleteRow(range);
+            };
+
+            var newItemMenuItem = commandBar.Controls.Add(Office.MsoControlType.msoControlButton, missing, missing, missing, true);
+            newItemMenuItem.Caption = "Classify as New Item";
+            newItemMenuItem.Enabled = CanClassifyAsNewItem(range);
+            ((CommandBarButton)newItemMenuItem).Click += (CommandBarButton classifyNewButton, ref bool cancelNewItem) =>
+            {
+                ClassifyAsNewItem(range);
+            };
+
+            var labelChangeMenuItem = commandBar.Controls.Add(Office.MsoControlType.msoControlButton, missing, missing, missing, true);
+            labelChangeMenuItem.Caption = "Classify as Label Change";
+            labelChangeMenuItem.Enabled = CanClassifyAsLabelChange(range);
+            ((CommandBarButton)labelChangeMenuItem).Click += (CommandBarButton classifyLabelChangeButton, ref bool cancelLabelChange) =>
+            {
+                ClassifyAsLabelChange(range);
+            };
         }
 
         #region VSTO generated code
