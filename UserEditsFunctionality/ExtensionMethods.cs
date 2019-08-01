@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Reflection;
 using Microsoft.Office.Interop.Excel;
@@ -25,6 +26,15 @@ namespace UserEditsFunctionality
         {
             Worksheet worksheet = range.Worksheet;
             return ((Range)worksheet.Cells[range.Row, worksheet.Columns.Count]).End[XlDirection.xlToLeft];
+        }
+
+        public static List<Range> ToList(this Range source)
+        {
+            List<Range> ranges = new List<Range>();
+            foreach (Range range in source.Rows)
+                ranges.Add(range);
+
+            return ranges;
         }
     }
 }

@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Diagnostics;
+using System.Collections.Generic;
 using System.Drawing;
 using Microsoft.Office.Interop.Excel;
 using Office = Microsoft.Office.Core;
@@ -53,25 +53,22 @@ namespace UserEditsFunctionality
             range.EntireRow.Delete();
         }
 
-        private void ClassifyAsNewItem(Range range)
+        private void ClassifyAsNewItem(Range source)
         {
-            if (!CanClassifyAsNewItem(range))
+            if (!CanClassifyAsNewItem(source))
                 return;
-            
-            int rowCount = range.Rows.Count;
 
-            //insert new empty rows
-            Range baseRow = range.Worksheet.Rows[range.Row + rowCount];
-            for (int i = 0; i < rowCount; i++)
+            List<Range> ranges = source.ToList();
+            foreach (Range range in ranges)
             {
-                baseRow.Insert();
+                Range belowRange = range.Worksheet.Rows[range.Row + 1];
+                belowRange.EntireRow.Insert();
             }
 
-            //copy values
-            for (int i = 0; i < rowCount; i++)
+            foreach (Range range in ranges)
             {
-                Range newRow = ((Range)range.Worksheet.Rows[range.Row + rowCount + i]).EntireRow;
-                Range oldRow = ((Range)range.Worksheet.Rows[range.Row + i]).EntireRow;
+                Range oldRow = range.EntireRow;
+                Range newRow = ((Range) range.Worksheet.Rows[range.Row + 1]).EntireRow;
 
                 newRow.Cell(1).Value = LabelAction.Addtition.GetDescription();
                 newRow.Cell(2).Value = oldRow.Cell(2).Value;
@@ -88,18 +85,19 @@ namespace UserEditsFunctionality
             }
         }
 
-        private void ClassifyAsLabelChange(Range range)
+        private void ClassifyAsLabelChange(Range source)
         {
-            if (!CanClassifyAsLabelChange(range))
+            if (!CanClassifyAsLabelChange(source))
                 return;
 
-            foreach (Range row in range.Rows)
+            var ranges = source.ToList();
+            foreach (Range range in ranges)
             {
-                Range nonEmptyCells = row.EntireRow.Cells.SpecialCells(XlCellType.xlCellTypeConstants, 7);
-                int aboveRowIndex = row.Row - range.Rows.Count;
-                if(aboveRowIndex < 1)
+                Range nonEmptyCells = range.EntireRow.Cells.SpecialCells(XlCellType.xlCellTypeConstants, 7);
+                int aboveRowIndex = range.Row - 1;
+                if (aboveRowIndex < 1)
                     continue;
-                
+
                 Range aboveRow = range.Worksheet.Rows[aboveRowIndex];
 
                 foreach (Range cell in nonEmptyCells.Cells)
@@ -111,7 +109,7 @@ namespace UserEditsFunctionality
                 aboveRow.Cell(3).Interior.Color = ColorTranslator.ToOle(Color.FromArgb(163, 224, 255));
             }
 
-            range.EntireRow.Delete();
+            source.EntireRow.Delete();
         }
 
         private bool CanClassifyAsNewItem(Range range)
